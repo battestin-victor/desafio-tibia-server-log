@@ -1,0 +1,15 @@
+{
+  "dependencies": {
+    "fs": "^0.0.1-security",
+    "node": "^20.2.0"
+  },
+  "name": "desafio---ambipar-bleu-technologies",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "execute": "node ./src/main.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}

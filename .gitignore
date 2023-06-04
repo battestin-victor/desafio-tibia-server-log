@@ -1,0 +1,6 @@
+# Arquivos gerados pelo npm
+node_modules/
+npm-debug.log
+
+# Arquivo package-lock.json
+package-lock.json
