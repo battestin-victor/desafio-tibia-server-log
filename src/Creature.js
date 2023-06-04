@@ -8,6 +8,13 @@ class Creature {
         this.drops = new Loots();
     }
 
+    addDamageHitted(dmg){
+        this.damageHitted += parseInt(dmg);
+    }
+
+    addDamageTaken(dmg){
+        this.damageTaken += parseInt(dmg);
+    }
 
 }
 

@@ -1,6 +1,7 @@
 const fs = require('fs');
+const Creature = require('./Creature');
 
-function eventFilter(obj, userChar, userDrops){
+function eventFilter(obj, userChar, creatures){
 
     if(obj.value.includes('healed yourself')){
         // Healed Hitpoints
@@ -11,36 +12,9 @@ function eventFilter(obj, userChar, userDrops){
         let damageTaken = obj.value.match(/(\d+) hitpoint(s)?/);
         userChar.addDamageTaken(damageTaken[1]);
         let creature = obj.value.match(/by\s+(a|an)\s+(\w+)/i);
-        if(creature !== null){
+        if(creature !== null) {
             // Damage taken by creature
-            switch(creature[2]){
-                case 'cyclops':
-                    userChar.addDamageTakenByCyclops(damageTaken[1]);
-                    break;
-                case 'ghoul':
-                    userChar.addDamageTakenByGhoul(damageTaken[1]);
-                    break;
-                case 'dwarf':
-                    userChar.addDamageTakenByDwarf(damageTaken[1]);
-                    break;
-                case 'dragon':
-                    userChar.addDamageTakenByDragon(damageTaken[1]);
-                    break;
-                case 'wyvern':
-                    userChar.addDamageTakenByWyvern(damageTaken[1]);
-                    break;
-                case 'scorpion':
-                    userChar.addDamageTakenByScorpion(damageTaken[1]);
-                    break;
-                case 'bonelord':
-                    userChar.addDamageTakenByBonelord(damageTaken[1]);
-                    break;
-                case 'Black':
-                    userChar.addDamageTakenByBlackKnight(damageTaken[1]);
-                    break;
-                default:
-                    break;
-            }
+            creatures[creature[2]].addDamageHitted(damageTaken);
         } else {
             // Damage taken from unknown origins
             userChar.addDamageTakenFromUnknownOrigins(damageTaken[1]);
@@ -53,48 +27,54 @@ function eventFilter(obj, userChar, userDrops){
         }
     } else if (obj.value.includes('Loot of')){
         // Loots by creature
-        let creature = obj.value.match(/Loot of a (\w+):/);
-        const drops = obj.value.match(/\s+(\d+)\s+(\w+)\s+/);
-        if(creature !== null){
-            switch(creature[1]){
-                case 'cyclops':
-                    if(drops !== null){
-                        const match = obj.value.match(/Loot of a \w+:\s(.+)/);
-                        
-                        if (match && match[1]) {
-                            const lootsString = match[1];
-                            const loots = lootsString.split(',').map(loot => loot.trim());
-                            console.log(loots);
-                        } else {
-                            console.log('Loots não encontrados');
-                        }
-                    }
-                    break;
-                case 'ghoul':
-                    //global.totalDamageByGhoul += parseInt(damageTaken[1]);
-                    break;
-                case 'dwarf':
-                    //global.totalDamageByDwarf += parseInt(damageTaken[1]);
-                    break;
-                case 'dragon':
-                    //global.totalDamageByDragon += parseInt(damageTaken[1]);
-                    break;
-                case 'wyvern':
-                    //global.totalDamageByWyvern += parseInt(damageTaken[1]);
-                    break;
-                case 'scorpion':
-                    //global.totalDamageByScorpion += parseInt(damageTaken[1]);
-                    break;
-                case 'bonelord':
-                    //global.totalDamageByBonelord += parseInt(damageTaken[1]);
-                    break;
-                case 'Black':
-                    //global.totalDamageByBlackKnight += parseInt(damageTaken[1]);
-                    break;
-                default:
-                    break;
+
+        // Remove o prefixo 'Loot of a' da string
+        const unprefixedObjectValue = obj.value.replace('Loot of a', '');
+        // Divide a string em duas partes: antes e depois dos loots
+        const [_, filteredCreatureName, filteredLoots] = unprefixedObjectValue.match(/([^:]+):\s(.+)/);
+        // Remove os números e espaços antes das letras no lootParte1
+        const creatureName = filteredCreatureName.replace(/^\d+\s*/, '').trim();
+        // Separa os loots em um array
+        const loots = filteredLoots.split(',');
+        const creatureDrops = loots.map(loot => loot.trim());
+
+        if(creatureName !== null){
+            if(creatureDrops !== null && creatureDrops[0] !== 'nothing.'){
+                addDrops(creatureDrops, creatureName, creatures);
             }
         }
+    }
+}
+
+function addDrops(creatureDrops, creatureName, creatures){
+    let dropName = '';
+    if(creatureDrops.length > 1){
+        creatureDrops.forEach(lootString => {
+            const splitedLoots = lootString.split(' ');
+            for(i = 1; i < splitedLoots.length; i++){
+                dropName += splitedLoots[i];
+            }
+            if(splitedLoots.length > 3){
+                if(splitedLoots[0] === 'a'){
+                    creatures[creatureName].drops.add(dropName,1);
+                } else {
+                    creatures[creatureName].drops.add(dropName,splitedLoots[0]);
+                }
+            } else {
+                if(splitedLoots[0] === 'a'){
+                    creatures[creatureName].drops.add(dropName,1);
+                } else {
+                    creatures[creatureName].drops.add(dropName,splitedLoots[0]);
+                }
+            }
+        });
+    } else {
+        const splitedLoots = creatureDrops[0].split(' ');
+        for(i = 1; i < splitedLoots.length; i++){
+            dropName += splitedLoots[i];
+        }
+        dropName = dropName.replace(/[^\w\s]/gi, '');
+        creatures[creatureName].drops.add(dropName,splitedLoots[0]);
     }
 }
 
@@ -108,7 +88,8 @@ function extractor(parsedLog, userChar, userDrops) {
         try {
             const objetos = JSON.parse(data);
 
-            const nomesCriaturas = [];
+            // Extrair nome das criaturas
+            const allCreaturesInServerLog = [];
             const regex = /Loot of a (.+?):/;
 
             for (const string of objetos) {
@@ -116,14 +97,21 @@ function extractor(parsedLog, userChar, userDrops) {
 
                 if (match && match[1]) {
                     const nomeCriatura = match[1];
-                    nomesCriaturas.push(nomeCriatura);
+                    allCreaturesInServerLog.push(nomeCriatura);
                 }
             }
-            const arraySemDuplicatas = Array.from(new Set(nomesCriaturas));
-            console.log(arraySemDuplicatas);
+            const creaturesNamesArray = Array.from(new Set(allCreaturesInServerLog));
 
+            // Criar um array de criaturas existentes no log
+            const creatures = creaturesNamesArray.reduce((obj, name) => {
+                const creature = new Creature(name);
+                obj[creature.name] = creature;
+                return obj;
+            }, {});
+
+            // filtrar, preencher e salvar os eventos 
             objetos.forEach(obj => {
-                eventFilter(obj, userChar, userDrops);
+                eventFilter(obj, userChar, creatures);
             });
 
             let filteredInfos = {}
