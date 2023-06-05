@@ -14,6 +14,4 @@ const userChar = new UserChar();
 parseTibiaLog('files/log-files/Server-Log.txt', 'files/result-files/parsed-log.json');
 
 // Extrair as informações do log parseado e criar o json final com as informações
-const finalAnalisys = extractor('files/result-files/parsed-log.json', userChar);
-
-console.log(finalAnalisys);
+extractor('files/result-files/parsed-log.json', 'files/result-files/finalAnalysis.json',  userChar);

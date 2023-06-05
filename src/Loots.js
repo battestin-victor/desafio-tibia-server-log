@@ -1,6 +1,6 @@
 class Loots {
     constructor(){
-        this.goldcoins = 0;                  // Gold Coins
+        this.goldcoins = 0;             // Gold Coins
         this.cyclopstrophy = 0;         // Cyclops Trophy
         this.cyclopstoe = 0;            // Cyclops Toe
         this.meat = 0;                  // Meat

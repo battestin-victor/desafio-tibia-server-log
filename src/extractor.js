@@ -2,7 +2,6 @@ const fs = require('fs');
 const Creature = require('./Creature');
 
 function eventFilter(obj, userChar, creatures){
-
     if(obj.value.includes('healed yourself')){
         // Healed Hitpoints
         let healedHitpoints = obj.value.match(/(\d+) hitpoints/);
@@ -11,10 +10,11 @@ function eventFilter(obj, userChar, creatures){
         // Total Damage taken
         let damageTaken = obj.value.match(/(\d+) hitpoint(s)?/);
         userChar.addDamageTaken(damageTaken[1]);
-        let creature = obj.value.match(/by\s+(a|an)\s+(\w+)/i);
-        if(creature !== null) {
+        let creatureArray = obj.value.match(/by (a |an )?(.+)/i);
+        if(creatureArray !== null) {
             // Damage taken by creature
-            creatures[creature[2]].addDamageHitted(damageTaken);
+            let creature = creatureArray[2].trim().replace(/\.$/, '');
+            creatures[creature].addDamageHitted(damageTaken[1]);
         } else {
             // Damage taken from unknown origins
             userChar.addDamageTakenFromUnknownOrigins(damageTaken[1]);
@@ -43,42 +43,94 @@ function eventFilter(obj, userChar, creatures){
                 addDrops(creatureDrops, creatureName, creatures);
             }
         }
+    } else if (obj.value.includes('hitpoints due to your attack')){
+        // Acumulated damage hitted in creatures
+        let damageHitted = obj.value.match(/(\d+) hitpoint(s)?/);
+        let creatureArray = obj.value.match(/A(?:n)?\s(.*?)\sloses/);
+        let creature = creatureArray[1];
+        creatures[creature].addDamageTaken(damageHitted[1]);
     }
 }
 
 function addDrops(creatureDrops, creatureName, creatures){
     let dropName = '';
+    // Criatura dropou mais de um item
     if(creatureDrops.length > 1){
         creatureDrops.forEach(lootString => {
             const splitedLoots = lootString.split(' ');
+            // Nome do drop contém mais de 2 elementos
+            if(splitedLoots.length > 3){
+                // Drop não está no singular (começa com 'a') e não começa com um número
+                if(!(Number.isInteger(parseInt(splitedLoots[0]))) && splitedLoots[0] !== 'a'){
+                    for(i = 0; i < splitedLoots.length; i++){
+                        dropName += splitedLoots[i];
+                    }
+                    dropName = dropName.replace(/[^\w\s]/gi, '');
+                    creatures[creatureName].drops.add(dropName,1);
+                } else {
+                    for(i = 1; i < splitedLoots.length; i++){
+                        dropName += splitedLoots[i];
+                    }
+                    // Drop está no singular ou começa com um número
+                    if(splitedLoots[0] === 'a'){
+                        dropName = dropName.replace(/[^\w\s]/gi, '');
+                        creatures[creatureName].drops.add(dropName,1);
+                    } else {
+                        dropName = dropName.replace(/[^\w\s]/gi, '');
+                        creatures[creatureName].drops.add(dropName,splitedLoots[0]);
+                    }
+                }
+            } else { // Nome do drop não tem mais de 2 elementos
+                // Drop não está no singular (começa com 'a') e não começa com um número
+                if(!(Number.isInteger(parseInt(splitedLoots[0]))) && splitedLoots[0] !== 'a'){
+                    for(i = 0; i < splitedLoots.length; i++){
+                        dropName += splitedLoots[i];
+                    }
+                    dropName = dropName.replace(/[^\w\s]/gi, '');
+                    creatures[creatureName].drops.add(dropName,1);
+                } else { 
+                    // Drop está no singular ou começa com um número
+                    for(i = 1; i < splitedLoots.length; i++){
+                        dropName += splitedLoots[i];
+                    }
+                    if(splitedLoots[0] === 'a'){
+                        dropName = dropName.replace(/[^\w\s]/gi, '');
+                        creatures[creatureName].drops.add(dropName,1);
+                    } else {
+                        dropName = dropName.replace(/[^\w\s]/gi, '');
+                        creatures[creatureName].drops.add(dropName,splitedLoots[0]);
+                    }
+                }
+            }
+            dropName = '';
+        });
+    } else { // Criatura dropou apenas um item
+        const splitedLoots = creatureDrops[0].split(' ');
+
+        if(!(Number.isInteger(parseInt(splitedLoots[0]))) && splitedLoots[0] !== 'a'){
+            // Drop não está no singular (começa com 'a') e não começa com um número
+            for(i = 0; i < splitedLoots.length; i++){
+                dropName += splitedLoots[i];
+            }
+            dropName = dropName.replace(/[^\w\s]/gi, '');
+            creatures[creatureName].drops.add(dropName,1);
+        } else { 
+            // Drop está no singular ou começa com um número
             for(i = 1; i < splitedLoots.length; i++){
                 dropName += splitedLoots[i];
             }
-            if(splitedLoots.length > 3){
-                if(splitedLoots[0] === 'a'){
-                    creatures[creatureName].drops.add(dropName,1);
-                } else {
-                    creatures[creatureName].drops.add(dropName,splitedLoots[0]);
-                }
+            dropName = dropName.replace(/[^\w\s]/gi, '');
+            if(splitedLoots[0] === 'a'){
+                creatures[creatureName].drops.add(dropName,1);
             } else {
-                if(splitedLoots[0] === 'a'){
-                    creatures[creatureName].drops.add(dropName,1);
-                } else {
-                    creatures[creatureName].drops.add(dropName,splitedLoots[0]);
-                }
+                creatures[creatureName].drops.add(dropName,splitedLoots[0]);
             }
-        });
-    } else {
-        const splitedLoots = creatureDrops[0].split(' ');
-        for(i = 1; i < splitedLoots.length; i++){
-            dropName += splitedLoots[i];
         }
-        dropName = dropName.replace(/[^\w\s]/gi, '');
-        creatures[creatureName].drops.add(dropName,splitedLoots[0]);
+        dropName = '';
     }
 }
 
-function extractor(parsedLog, userChar, userDrops) {
+function extractor(parsedLog, finalAnalysisFile, userChar) {
     fs.readFile(parsedLog, 'utf8', (err, data) => {
         if (err) {
             console.error(err);
@@ -90,7 +142,7 @@ function extractor(parsedLog, userChar, userDrops) {
 
             // Extrair nome das criaturas
             const allCreaturesInServerLog = [];
-            const regex = /Loot of a (.+?):/;
+            const regex = /A(?:n)?\s(.*?)\sloses/;
 
             for (const string of objetos) {
                 const match = string.value.match(regex);
@@ -114,14 +166,68 @@ function extractor(parsedLog, userChar, userDrops) {
                 eventFilter(obj, userChar, creatures);
             });
 
-            let filteredInfos = {}
+            const damageTakenByCreatureKind = {};
+            const totalLoots = {};
+            const allLootsByCreatureKind = {};
 
-            return filteredInfos
+            for (let creature in creatures) {
+                if(creatures[creature].damageHitted > 0){
+                    const damageHitted = creatures[creature].damageHitted;
+                    damageTakenByCreatureKind[creature] = damageHitted;
+                }
+                allLootsByCreatureKind[creature] = {};
+                for(let drop in creatures[creature].drops){
+                    if(totalLoots[drop] === undefined) totalLoots[drop] = 0;
+                    if(creatures[creature].drops[drop] > 0){
+                        totalLoots[drop] += parseInt(creatures[creature].drops[drop]);
+                        allLootsByCreatureKind[creature][drop] = parseInt(creatures[creature].drops[drop]);
+                    }
+                }
+            }
+
+            for (let loot in totalLoots) {
+                if (totalLoots[loot] === 0) {
+                    delete totalLoots[loot];
+                }
+            }
+
+            const lootsByCreatureKind = {};
+            for(let creatureLoots in allLootsByCreatureKind){
+                if(Object.keys(allLootsByCreatureKind[creatureLoots]).length > 0){
+                    lootsByCreatureKind[creatureLoots] = allLootsByCreatureKind[creatureLoots];
+                }
+            }
+
+            let filteredInfos = {
+                "hitpointsHealed" : userChar.healedPoints,
+                "damageTaken" : {
+                    "total" : userChar.damageTaken,
+                    "fromUnknownOrigins" : userChar.damageTakenFromUnknownOrigins,
+                    "byCreatureKind" : damageTakenByCreatureKind,
+                },
+                "experienceGained" : userChar.receivedExperience,
+                "loots" : {
+                    "totalLoots" : totalLoots,
+                    "byCreatureKind" : lootsByCreatureKind
+                },
+                "blackKnightTotalHealth" : creatures['Black Knight'].damageTaken
+            };
+
+            
+            fs.writeFile(finalAnalysisFile, JSON.stringify(filteredInfos), 'utf8', (err) => {
+                if (err) {
+                    console.error(err);
+                    return;
+                }
+                console.log('Arquivo JSON Com a analise do LOG gerado com sucesso!');
+            });
+            return
 
         } catch (error) {
-            console.error('Erro ao processar o arquivo JSON:', error);
-            return 
+            console.error('Erro ao processar o arquivo PARSED-LOG.JSON:', error);
+            return
         }
     });
-} 
+}
+
 module.exports = extractor;
