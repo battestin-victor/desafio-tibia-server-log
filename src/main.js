@@ -4,12 +4,6 @@ const extractor = require('./extractor');
 
 const userChar = new UserChar();
 
-/*
-    - Converter o Log de txt para Json
-    - Verifico as criaturas existentes no LOG e crio um array de criaturas
-    - 
-*/
-
 // Conversão do log em um arquivo json para tratar os dados
 parseTibiaLog('files/log-files/Server-Log.txt', 'files/result-files/parsed-log.json');
 
